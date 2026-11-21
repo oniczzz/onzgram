@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="OnzLoginByQr">Войти по QR-коду</string>
+    <string name="OnzLoginOpenInTelegram">Войти через Telegram на этом устройстве</string>
+    <string name="OnzLoginCopyLink">Скопировать ссылку</string>
+    <string name="OnzLoginLinkCopied">Ссылка для входа скопирована. Она действует около 30 секунд.</string>
+    <string name="OnzLoginNoApp">На устройстве нет приложения, которое откроет ссылку входа.</string>
+    <string name="OnzLoginOpenWith">Открыть в</string>
+    <string name="OnzLoginQrHint">Официальный Telegram принимает этот код только через камеру: Настройки → Устройства → Подключить устройство. Отсканируйте его с другого телефона или планшета либо откройте код на втором экране.</string>
+</resources>

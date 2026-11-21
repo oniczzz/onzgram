@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="OnzLoginByQr">Log in by QR code</string>
+    <string name="OnzLoginOpenInTelegram">Log in with Telegram on this device</string>
+    <string name="OnzLoginCopyLink">Copy link</string>
+    <string name="OnzLoginLinkCopied">Login link copied. It stays valid for about 30 seconds.</string>
+    <string name="OnzLoginNoApp">No app on this device can open the login link.</string>
+    <string name="OnzLoginOpenWith">Open with</string>
+    <string name="OnzLoginQrHint">The official Telegram app accepts this code only through its camera: Settings → Devices → Link Desktop Device. Scan it from another phone or tablet, or show the code on a second screen.</string>
+</resources>

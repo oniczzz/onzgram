@@ -25,7 +25,9 @@ import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.Dialog;
+import android.content.ActivityNotFoundException;
 import android.content.ClipboardManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -2600,6 +2602,14 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 if (!testBackend) {
                     testBackendCheckBox.setVisibility(GONE);
                 }
+            }
+
+            if (activityMode == MODE_LOGIN) {
+                // onzgram: вход по QR-коду прямо со стартового экрана (раньше был только в меню «⋮»)
+                TextView qrLoginButton = createLoginTonalButton(context, getString(R.string.OnzLoginByQr), R.drawable.msg_qrcode_solar);
+                qrLoginButton.setOnClickListener(v -> setPage(VIEW_QR_LOGIN, true, null, false));
+                addView(qrLoginButton, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 44, Gravity.CENTER_HORIZONTAL, 16, 16, 16, 0));
+                bottomMargin -= 60;
             }
 
             if (bottomMargin > 0 && !AndroidUtilities.isSmallScreen()) {
@@ -8782,7 +8792,90 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
             qrView = new QrView(context);
             qrView.setData(null);
-            addView(qrView, LayoutHelper.createLinear(280, 280, Gravity.CENTER_HORIZONTAL, 30, 30,30, 30));
+            addView(qrView, LayoutHelper.createLinear(280, 280, Gravity.CENTER_HORIZONTAL, 30, 20, 30, 12));
+
+            // onzgram: вход через Telegram на этом же устройстве и копирование ссылки
+            openInTelegramButton = createLoginTonalButton(context, getString(R.string.OnzLoginOpenInTelegram), R.drawable.msg_openin);
+            openInTelegramButton.setOnClickListener(v -> openLoginLink());
+            addView(openInTelegramButton, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 44, Gravity.CENTER_HORIZONTAL, 16, 0, 16, 0));
+
+            copyLinkButton = createLoginTonalButton(context, getString(R.string.OnzLoginCopyLink), R.drawable.msg_copy);
+            copyLinkButton.setOnClickListener(v -> copyLoginLink());
+            addView(copyLinkButton, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 44, Gravity.CENTER_HORIZONTAL, 16, 8, 16, 0));
+
+            hintTextView = new TextView(context);
+            hintTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            hintTextView.setGravity(Gravity.CENTER_HORIZONTAL);
+            hintTextView.setLineSpacing(AndroidUtilities.dp(2), 1.0f);
+            hintTextView.setText(getString(R.string.OnzLoginQrHint));
+            addView(hintTextView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 24, 12, 24, 16));
+
+            setLinkButtonsEnabled(false);
+        }
+
+        private final TextView openInTelegramButton;
+        private final TextView copyLinkButton;
+        private final TextView hintTextView;
+        /** Текущая ссылка {@code tg://login?token=<base64url>}; токен обновляется до истечения срока. */
+        private String currentLink;
+
+        private void setLinkButtonsEnabled(boolean enabled) {
+            openInTelegramButton.setEnabled(enabled);
+            copyLinkButton.setEnabled(enabled);
+            openInTelegramButton.setAlpha(enabled ? 1f : 0.5f);
+            copyLinkButton.setAlpha(enabled ? 1f : 0.5f);
+        }
+
+        private void setCurrentLink(String link) {
+            currentLink = link;
+            qrView.setData(link);
+            setLinkButtonsEnabled(link != null);
+        }
+
+        /**
+         * Открывает ссылку входа в установленном Telegram: сначала официальные сборки, потом
+         * выбор приложения. Сам onzgram в выборе не участвует — он и показывает этот код.
+         */
+        private void openLoginLink() {
+            final Activity activity = getParentActivity();
+            if (currentLink == null || activity == null) {
+                return;
+            }
+            final Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(currentLink));
+            final String[] officialPackages = {
+                "org.telegram.messenger",
+                "org.telegram.messenger.web",
+                "org.telegram.messenger.beta",
+                "org.thunderdog.challegram"
+            };
+            for (String pkg : officialPackages) {
+                try {
+                    activity.startActivity(new Intent(intent).setPackage(pkg));
+                    return;
+                } catch (ActivityNotFoundException ignore) {
+                    // не установлен — следующий
+                } catch (Exception e) {
+                    FileLog.e(e);
+                }
+            }
+            try {
+                final Intent chooser = Intent.createChooser(intent, getString(R.string.OnzLoginOpenWith));
+                chooser.putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS,
+                    new ComponentName[]{new ComponentName(activity, LaunchActivity.class)});
+                activity.startActivity(chooser);
+            } catch (Exception e) {
+                FileLog.e(e);
+                BulletinFactory.of(slideViewsContainer, null).createSimpleBulletin(R.raw.chats_infotip, getString(R.string.OnzLoginNoApp)).show();
+            }
+        }
+
+        private void copyLoginLink() {
+            if (currentLink == null) {
+                return;
+            }
+            if (AndroidUtilities.addToClipboard(currentLink)) {
+                BulletinFactory.of(slideViewsContainer, null).createSimpleBulletin(R.raw.chats_infotip, getString(R.string.OnzLoginLinkCopied)).show();
+            }
         }
 
         @Override
@@ -8790,6 +8883,9 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             titleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
             confirmTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText6));
             confirmTextView.setLinkTextColor(Theme.getColor(Theme.key_chats_actionBackground));
+            hintTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText6));
+            updateLoginTonalButtonColors(openInTelegramButton);
+            updateLoginTonalButtonColors(copyLinkButton);
         }
 
         @Override
@@ -8820,6 +8916,8 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             removeObserver();
             super.onHide();
             qrView.clear();
+            currentLink = null;
+            setLinkButtonsEnabled(false);
         }
 
         private void removeObserver() {
@@ -8861,7 +8959,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                     if (response instanceof TLRPC.TL_auth_loginToken) {
                         TLRPC.TL_auth_loginToken res = (TLRPC.TL_auth_loginToken) response;
                         String link = "tg://login?token=" + Base64.encodeToString(res.token, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
-                        qrView.setData(link);
+                        setCurrentLink(link);
                         long expires = res.expires - getConnectionsManager().getCurrentTime();
                         if (expires < 0) {
                             expires = 20;
@@ -8931,6 +9029,41 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             if (id == NotificationCenter.updateLoginToken) {
                 exportLoginToken(false);
             }
+        }
+    }
+
+    /** onzgram: тональная кнопка Material 3 со значком — для входа по QR. */
+    private TextView createLoginTonalButton(Context context, CharSequence text, int iconRes) {
+        TextView button = new TextView(context);
+        button.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        button.setTypeface(AndroidUtilities.bold());
+        button.setGravity(Gravity.CENTER);
+        button.setSingleLine(true);
+        button.setEllipsize(TextUtils.TruncateAt.END);
+        button.setPadding(AndroidUtilities.dp(20), 0, AndroidUtilities.dp(24), 0);
+        button.setCompoundDrawablePadding(AndroidUtilities.dp(8));
+        button.setText(text);
+        Drawable icon = ContextCompat.getDrawable(context, iconRes);
+        if (icon != null) {
+            icon = icon.mutate();
+            icon.setBounds(0, 0, AndroidUtilities.dp(20), AndroidUtilities.dp(20));
+            button.setCompoundDrawables(icon, null, null, null);
+        }
+        updateLoginTonalButtonColors(button);
+        return button;
+    }
+
+    private void updateLoginTonalButtonColors(TextView button) {
+        if (button == null) {
+            return;
+        }
+        final int accent = Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4);
+        button.setTextColor(accent);
+        button.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(22),
+            Theme.multAlpha(accent, 0.12f), Theme.multAlpha(accent, 0.24f)));
+        final Drawable[] drawables = button.getCompoundDrawables();
+        if (drawables[0] != null) {
+            drawables[0].setColorFilter(new PorterDuffColorFilter(accent, PorterDuff.Mode.SRC_IN));
         }
     }
 

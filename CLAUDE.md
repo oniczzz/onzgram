@@ -36,6 +36,13 @@
   Стеклянные поверхности Telegram (`blur3/drawable/BlurredBackgroundDrawable`) получают слой через `setLiquidGlassOverlay(true)`.
 - Цвета — из `Theme` (`key_windowBackgroundWhite`, `key_windowBackgroundWhiteBlueHeader`) на каждой отрисовке.
 
+## Вход по QR
+
+- `org/telegram/ui/LoginActivity.java`: кнопка «Войти по QR-коду» в `PhoneView`, экран `LoginActivityQrView`
+  (`auth.exportLoginToken`, ссылка `tg://login?token=<base64url>`, кнопки «открыть в Telegram» / «скопировать»).
+  Строки — `res/values*/strings_onz.xml`.
+- Официальный Telegram для Android принимает токен только сканером камеры (Настройки → Устройства), не по ссылке.
+
 ## Прочие конфиги
 
 - Призрак: `tw/nekomimi/nekogram/NekoConfig.java` + `com/radolyn/ayugram/utils/AyuGhostUtils.java`
