@@ -2,6 +2,7 @@ package app.exteraless.appearance.glass;
 
 import static org.telegram.messenger.AndroidUtilities.dpf2;
 
+import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
@@ -19,6 +20,7 @@ import androidx.annotation.RequiresApi;
 import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.LiteMode;
 import org.telegram.ui.ActionBar.Theme;
 
 import app.exteraless.appearance.AppearanceConfig;
@@ -52,8 +54,8 @@ public final class LiquidGlassController {
     public static final int TIER_BLUR = 1;
     public static final int TIER_SHADER = 2;
 
-    /** Скругление стеклянных попапов в стиле Material 3. */
-    public static final float POPUP_RADIUS_DP = 14f;
+    /** Скругление стеклянных попапов: M3 «large» (16dp). */
+    public static final float POPUP_RADIUS_DP = 16f;
 
     private static int tier = -1;
 
@@ -76,9 +78,69 @@ public final class LiquidGlassController {
         return dpf2(6f + 22f * getIntensity());
     }
 
-    /** Насколько сильно край стекла «тянет» картинку (преломление), px. */
-    public static float getRefractionStrength() {
-        return dpf2(4f + 8f * getIntensity());
+    /**
+     * Сила преломления линзы (множитель длины преломлённого луча), как {@code refract_intensity}
+     * движка Telegram: 0.45..1.25, при интенсивности 60% ≈ 0.93 (у Telegram по умолчанию 0.75).
+     */
+    public static float getRefractionIntensity() {
+        return 0.45f + 0.8f * getIntensity();
+    }
+
+    /** Толщина линзы у края — ширина полосы, где стекло преломляет, px: 8..16dp. */
+    public static int getLensThickness() {
+        return Math.round(dpf2(8f + 8f * getIntensity()));
+    }
+
+    /** Показатель преломления стекла. */
+    public static final float REFRACTION_INDEX = 1.5f;
+
+    /* ---------------- Telegram's glass engine ---------------- */
+
+    private static final String KEY_ENGINE_SYNCED = "OEAppearanceLiquidGlassEngineSynced";
+
+    /**
+     * Настоящее преломление заднего плана на шапке, поле ввода, меню и панелях делает движок
+     * Telegram (blur3, {@code LiquidGlassEffect}, API 33+), и включается он флагом
+     * {@link LiteMode#FLAG_LIQUID_GLASS}. Telegram снимает этот флаг на средних / слабых
+     * устройствах и при миграции настроек — тогда остаётся только матовое размытие. Переключатель
+     * Liquid Glass onzgram ведёт и этот флаг, и размытие.
+     */
+    public static void syncEngine(boolean enabled) {
+        try {
+            if (enabled) {
+                if (!LiteMode.isEnabledSetting(LiteMode.FLAG_CHAT_BLUR)) {
+                    LiteMode.toggleFlag(LiteMode.FLAG_CHAT_BLUR, true);
+                }
+                if (!LiteMode.isEnabledSetting(LiteMode.FLAG_LIQUID_GLASS)) {
+                    LiteMode.toggleFlag(LiteMode.FLAG_LIQUID_GLASS, true);
+                }
+            } else if (LiteMode.isEnabledSetting(LiteMode.FLAG_LIQUID_GLASS)) {
+                LiteMode.toggleFlag(LiteMode.FLAG_LIQUID_GLASS, false);
+            }
+            // стеклянные drawable сверяют поколение настроек при отрисовке
+            org.telegram.utils.glass.GlassEngine.getCurrentGlassSettings();
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /**
+     * Один раз после установки: включённый по умолчанию Liquid Glass включает и движок. Дальше
+     * флагами управляют переключатель onzgram и экран энергосбережения.
+     */
+    public static void onAppStart() {
+        try {
+            final SharedPreferences preferences = AppearanceConfig.getPreferences();
+            if (preferences.getBoolean(KEY_ENGINE_SYNCED, false)) {
+                return;
+            }
+            preferences.edit().putBoolean(KEY_ENGINE_SYNCED, true).apply();
+            if (isEnabled()) {
+                syncEngine(true);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
     }
 
     public static int getTier() {
@@ -129,6 +191,16 @@ public final class LiquidGlassController {
      */
     public static void drawOverlay(@NonNull Canvas canvas, @NonNull Path shape, @NonNull RectF bounds,
                                    float radius, float alpha, @Nullable Theme.ResourcesProvider resourcesProvider) {
+        drawOverlay(canvas, shape, bounds, radius, alpha, false, resourcesProvider);
+    }
+
+    /**
+     * @param refractive под слоем уже настоящее преломление (движок Telegram или фон попапа) —
+     *                   нарисованную «линзу» у края приглушаем, остаются блик, тонировка и обводка
+     */
+    public static void drawOverlay(@NonNull Canvas canvas, @NonNull Path shape, @NonNull RectF bounds,
+                                   float radius, float alpha, boolean refractive,
+                                   @Nullable Theme.ResourcesProvider resourcesProvider) {
         if (!isEnabled() || alpha <= 0f || bounds.width() < 1f || bounds.height() < 1f) {
             return;
         }
@@ -140,7 +212,7 @@ public final class LiquidGlassController {
 
         boolean drawn = false;
         if (currentTier == TIER_SHADER && Build.VERSION.SDK_INT >= 33) {
-            drawn = ShaderTier.draw(canvas, shape, bounds, radius, intensity, dark, tint, accent, alpha);
+            drawn = ShaderTier.draw(canvas, shape, bounds, radius, intensity, dark, tint, accent, alpha, refractive ? 0.35f : 1f);
         }
         if (!drawn) {
             drawGradientFill(canvas, shape, bounds, intensity, dark, tint, accent, alpha, currentTier >= TIER_BLUR);
@@ -289,6 +361,7 @@ public final class LiquidGlassController {
         "uniform float uRadius;\n" +
         "uniform float uIntensity;\n" +
         "uniform float uDark;\n" +
+        "uniform float uRim;\n" +
         "uniform float4 uTint;\n" +
         "uniform float4 uAccent;\n" +
         "\n" +
@@ -311,15 +384,16 @@ public final class LiquidGlassController {
         "    n = n / max(length(n), 0.0001);\n" +
         "    float2 light = normalize(float2(-0.45, -0.89));\n" +
         "    float facing = dot(n, light);\n" +
-        "    float rimLit = edge * edge * max(facing, 0.0);\n" +
-        "    float rimShade = edge * edge * edge * max(-facing, 0.0);\n" +
+        "    float rimLit = edge * edge * max(facing, 0.0) * uRim;\n" +
+        "    float rimShade = edge * edge * edge * max(-facing, 0.0) * uRim;\n" +
+        "    float rimLine = (1.0 - smoothstep(0.0, 2.5, -d)) * (0.35 + 0.65 * max(facing, 0.0));\n" +
         "    float2 uv = (coord - uOrigin) / max(uSize, float2(1.0));\n" +
         "    float2 g = (uv - float2(0.3, 0.05)) * float2(1.7, 3.4);\n" +
         "    float glare = exp(-dot(g, g) * 2.5);\n" +
         "    float3 tint = mix(uTint.rgb, uAccent.rgb, 0.12 + 0.10 * uv.y);\n" +
         "    float k = uIntensity;\n" +
         "    float tintA = mix(0.07, 0.14, uDark) * k;\n" +
-        "    float hiA = clamp((0.50 * rimLit + 0.22 * glare) * k * mix(1.0, 0.55, uDark), 0.0, 1.0);\n" +
+        "    float hiA = clamp((0.50 * rimLit + 0.22 * glare + 0.30 * rimLine) * k * mix(1.0, 0.55, uDark), 0.0, 1.0);\n" +
         "    float shA = clamp(0.16 * rimShade * k, 0.0, 1.0);\n" +
         "    float3 col = tint * tintA;\n" +
         "    float a = tintA;\n" +
@@ -331,14 +405,19 @@ public final class LiquidGlassController {
         "}\n";
 
     /**
-     * Преломление для {@link android.graphics.RenderEffect#createRuntimeShaderEffect}: у края
-     * формы выборка смещается внутрь (линза), с лёгким хроматическим разнесением каналов.
+     * Физическое преломление для {@link android.graphics.RenderEffect#createRuntimeShaderEffect}
+     * (та же модель линзы, что у движка Telegram): у края стекло — выпуклая линза толщиной
+     * {@code uThickness}, нормаль поверхности берётся из SDF скруглённого прямоугольника, луч
+     * преломляется по закону Снелла ({@code refract}, показатель {@code uIndex}) и проходит толщу
+     * стекла. Плюс дисперсия — каналы преломляются чуть по-разному, как у настоящего стекла.
      * Работает поверх уже размытого заднего плана (RenderEffect.createChainEffect).
      */
     static final String REFRACTION_AGSL =
         "uniform shader content;\n" +
         "uniform float4 uRect;\n" +
         "uniform float uRadius;\n" +
+        "uniform float uThickness;\n" +
+        "uniform float uIndex;\n" +
         "uniform float uStrength;\n" +
         "\n" +
         "float sdRoundRect(float2 p, float2 b, float r) {\n" +
@@ -348,20 +427,27 @@ public final class LiquidGlassController {
         "\n" +
         "half4 main(float2 coord) {\n" +
         "    float2 hs = max((uRect.zw - uRect.xy) * 0.5, float2(0.5));\n" +
-        "    float2 p = coord - (uRect.xy + hs);\n" +
+        "    float2 c = uRect.xy + hs;\n" +
+        "    float2 p = coord - c;\n" +
         "    float r = min(uRadius, min(hs.x, hs.y));\n" +
-        "    float d = sdRoundRect(p, hs, r);\n" +
-        "    float band = max(r, 3.0);\n" +
-        "    float t = clamp(1.0 + d / band, 0.0, 1.0);\n" +
-        "    float2 ex = float2(0.5, 0.0);\n" +
-        "    float2 ey = float2(0.0, 0.5);\n" +
-        "    float2 n = float2(sdRoundRect(p + ex, hs, r) - sdRoundRect(p - ex, hs, r),\n" +
-        "                      sdRoundRect(p + ey, hs, r) - sdRoundRect(p - ey, hs, r));\n" +
-        "    n = n / max(length(n), 0.0001);\n" +
-        "    float2 offset = -n * uStrength * t * t;\n" +
-        "    half4 base = content.eval(coord + offset);\n" +
-        "    half4 red = content.eval(coord + offset * 1.2);\n" +
-        "    half4 blue = content.eval(coord + offset * 0.8);\n" +
+        "    float th = max(uThickness, 1.0);\n" +
+        "    float sdRaw = sdRoundRect(p, hs, r);\n" +
+        "    float sd = min(sdRaw, 0.0);\n" +
+        "    float sdX = sdRoundRect(p + float2(1.0, 0.0), hs, r);\n" +
+        "    float sdY = sdRoundRect(p + float2(0.0, 1.0), hs, r);\n" +
+        "    float nCos = max(th + sd, 0.0) / th;\n" +
+        "    float nSin = sqrt(max(1.0 - nCos * nCos, 0.0));\n" +
+        "    float3 normal = normalize(float3((sdX - sdRaw) * nCos, (sdY - sdRaw) * nCos, nSin + 0.0001));\n" +
+        "    float3 ray = refract(float3(0.0, 0.0, -1.0), normal, 1.0 / uIndex);\n" +
+        "    float h = sd < -th ? th : sqrt(max(sd * (-2.0 * th - sd), 0.0));\n" +
+        "    float travel = (h + 8.0 * th) / max(-ray.z, 0.05);\n" +
+        "    float2 offset = ray.xy * travel * uStrength;\n" +
+        "    float2 lo = c - hs + float2(0.5);\n" +
+        "    float2 hi = c + hs - float2(0.5);\n" +
+        "    float disp = 0.08 * nCos;\n" +
+        "    half4 base = content.eval(clamp(coord + offset, lo, hi));\n" +
+        "    half4 red = content.eval(clamp(coord + offset * (1.0 + disp), lo, hi));\n" +
+        "    half4 blue = content.eval(clamp(coord + offset * (1.0 - disp), lo, hi));\n" +
         "    return half4(red.r, base.g, blue.b, base.a);\n" +
         "}\n";
 
@@ -397,7 +483,7 @@ public final class LiquidGlassController {
         }
 
         static boolean draw(Canvas canvas, Path shape, RectF bounds, float radius, float intensity, boolean dark,
-                            int tint, int accent, float alpha) {
+                            int tint, int accent, float alpha, float rim) {
             final RuntimeShader s = obtain();
             if (s == null) {
                 return false;
@@ -408,6 +494,7 @@ public final class LiquidGlassController {
                 s.setFloatUniform("uRadius", Math.max(0f, radius));
                 s.setFloatUniform("uIntensity", intensity);
                 s.setFloatUniform("uDark", dark ? 1f : 0f);
+                s.setFloatUniform("uRim", rim);
                 s.setFloatUniform("uTint", Color.red(tint) / 255f, Color.green(tint) / 255f, Color.blue(tint) / 255f, 1f);
                 s.setFloatUniform("uAccent", Color.red(accent) / 255f, Color.green(accent) / 255f, Color.blue(accent) / 255f, 1f);
                 paint.setShader(s);

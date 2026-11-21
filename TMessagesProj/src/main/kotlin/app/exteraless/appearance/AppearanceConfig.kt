@@ -257,7 +257,7 @@ object AppearanceConfig {
 
     @JvmField
     val m3ListItems =
-        addConfig("OEAppearanceM3ListItems", ConfigItem.configTypeBool, false)
+        addConfig("OEAppearanceM3ListItems", ConfigItem.configTypeBool, true)
 
     @JvmStatic
     fun m3ListItems(): Boolean {
@@ -811,7 +811,9 @@ object AppearanceConfig {
     private const val LEGACY_DEFAULT_TITLE = "Nagram X"
 
     private fun migrateLegacyTitleName() {
-        if (NaConfig.customTitle.String() != LEGACY_DEFAULT_TITLE) return
+        // «exteraless» — заголовок по умолчанию до ребрендинга в onzgram
+        val current = NaConfig.customTitle.String()
+        if (current != LEGACY_DEFAULT_TITLE && current != "exteraless") return
         NaConfig.customTitle.setConfigString(NaConfig.customTitle.defaultValue as String)
         if (titleText.Int() == TITLE_TEXT_CUSTOM) {
             titleText.setConfigInt(0)

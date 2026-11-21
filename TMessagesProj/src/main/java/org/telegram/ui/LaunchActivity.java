@@ -452,6 +452,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
         instance = this;
         ApplicationLoader.postInitApplication();
+        // onzgram Liquid Glass: включить движок преломления до создания экранов (один раз)
+        app.exteraless.appearance.glass.LiquidGlassController.onAppStart();
         AndroidUtilities.checkDisplaySize(this, getResources().getConfiguration());
         currentAccount = UserConfig.selectedAccount;
         if (BuildVars.DEBUG_VERSION || BuildVars.DEBUG_PRIVATE_VERSION) {

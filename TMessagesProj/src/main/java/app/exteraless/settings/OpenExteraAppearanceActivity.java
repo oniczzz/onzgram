@@ -823,6 +823,12 @@ public class OpenExteraAppearanceActivity extends BaseNekoSettingsActivity {
             if (view instanceof TextCheckCell) {
                 ((TextCheckCell) view).setChecked(enabled);
             }
+            // настоящее преломление движка Telegram (LiteMode) — вместе с переключателем
+            app.exteraless.appearance.glass.LiquidGlassController.syncEngine(enabled);
+            notifyRow(forceBlurRow);
+            if (enabled) {
+                showPowerSaverNotice();
+            }
             // строка ползунка интенсивности появляется / исчезает вместе с переключателем
             rebuildRowsAndNotify();
             rebuildAll();

@@ -842,6 +842,9 @@ public class BlurredBackgroundDrawable extends GlassDrawable implements Theme.Co
     public void draw(@NonNull Canvas canvas) {
         checkThemeColors();
         checkGlassSettings();
+        if (liquidGlassOverlay) {
+            applyLiquidGlassLens();
+        }
         if (boundProps.boundsWithPadding.isEmpty()) {
             return;
         }
@@ -878,6 +881,25 @@ public class BlurredBackgroundDrawable extends GlassDrawable implements Theme.Co
         return this;
     }
 
+    /**
+     * Ползунок интенсивности Liquid Glass управляет и настоящей линзой движка: силой преломления
+     * и толщиной стекла у края. Узел перезаписывается, только когда значения изменились.
+     */
+    private void applyLiquidGlassLens() {
+        if (!app.exteraless.appearance.glass.LiquidGlassController.isEnabled()) {
+            return;
+        }
+        final float intensity = app.exteraless.appearance.glass.LiquidGlassController.getRefractionIntensity();
+        final int thickness = app.exteraless.appearance.glass.LiquidGlassController.getLensThickness();
+        if (Math.abs(boundProps.liquidIntensity - intensity) > 0.005f) {
+            setIntensity(intensity);
+        }
+        if (boundProps.liquidThickness != thickness) {
+            setThickness(thickness);
+        }
+        boundProps.liquidIndex = app.exteraless.appearance.glass.LiquidGlassController.REFRACTION_INDEX;
+    }
+
     private void drawLiquidGlassOverlay(@NonNull Canvas canvas) {
         if (!app.exteraless.appearance.glass.LiquidGlassController.isEnabled()) {
             return;
@@ -888,7 +910,8 @@ public class BlurredBackgroundDrawable extends GlassDrawable implements Theme.Co
             radius = Math.max(radius, boundProps.radii[i]);
         }
         app.exteraless.appearance.glass.LiquidGlassController.drawOverlay(
-            canvas, boundProps.path, liquidGlassBounds, radius, getAlpha() / 255f, null);
+            canvas, boundProps.path, liquidGlassBounds, radius, getAlpha() / 255f,
+            isLiquidGlassEffectEnabled() && impl == renderNodeImpl, null);
     }
 
     private static GlassSource softwareSource(GlassSource source) {

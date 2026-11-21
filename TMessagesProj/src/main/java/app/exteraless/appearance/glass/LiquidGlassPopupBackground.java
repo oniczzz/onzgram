@@ -108,7 +108,8 @@ public final class LiquidGlassPopupBackground {
 
         final float tintAlpha;
         if (state == Backdrop.DRAWN) {
-            tintAlpha = lerp(0.88f, 0.50f, intensity);
+            // прозрачное стекло: за меню видно размытый и преломлённый фон
+            tintAlpha = lerp(0.72f, 0.36f, intensity);
         } else if (state == Backdrop.PENDING) {
             // копия заднего плана ещё не пришла — почти непрозрачно, чтобы не мигать
             tintAlpha = 0.97f;
@@ -118,7 +119,9 @@ public final class LiquidGlassPopupBackground {
         tintPaint.setColor(ColorUtils.setAlphaComponent(color, (int) (Color.alpha(color) * tintAlpha * a)));
         canvas.drawPath(path, tintPaint);
 
-        LiquidGlassController.drawOverlay(canvas, path, shape, radius, a, resourcesProvider);
+        final boolean refractive = state == Backdrop.DRAWN
+            && LiquidGlassController.getTier() == LiquidGlassController.TIER_SHADER;
+        LiquidGlassController.drawOverlay(canvas, path, shape, radius, a, refractive, resourcesProvider);
         return true;
     }
 
@@ -175,7 +178,7 @@ public final class LiquidGlassPopupBackground {
         private int failedCopies;
 
         private boolean effectValid;
-        private float effectBlur, effectLeft, effectTop, effectRight, effectBottom, effectRadius, effectStrength;
+        private float effectBlur, effectLeft, effectTop, effectRight, effectBottom, effectRadius, effectThickness, effectStrength;
         private RuntimeShader refraction;
         private boolean refractionFailed;
 
@@ -246,7 +249,8 @@ public final class LiquidGlassPopupBackground {
                 (shape.right - originX) / scaleX,
                 (shape.bottom - originY) / scaleY,
                 radius / scaleX,
-                LiquidGlassController.getRefractionStrength() / scaleX);
+                Math.min(LiquidGlassController.getLensThickness(), Math.min(shape.width(), shape.height()) / 4f) / scaleX,
+                LiquidGlassController.getRefractionIntensity());
             node.setAlpha(Math.max(0f, Math.min(1f, alpha)));
 
             canvas.save();
@@ -258,12 +262,14 @@ public final class LiquidGlassPopupBackground {
             return DRAWN;
         }
 
-        private void updateEffect(float blur, float left, float top, float right, float bottom, float radius, float strength) {
+        private void updateEffect(float blur, float left, float top, float right, float bottom, float radius,
+                                  float thickness, float strength) {
             if (effectValid
                 && Math.abs(effectBlur - blur) < 0.25f
                 && Math.abs(effectLeft - left) < 0.25f && Math.abs(effectTop - top) < 0.25f
                 && Math.abs(effectRight - right) < 0.25f && Math.abs(effectBottom - bottom) < 0.25f
-                && Math.abs(effectRadius - radius) < 0.25f && Math.abs(effectStrength - strength) < 0.25f) {
+                && Math.abs(effectRadius - radius) < 0.25f && Math.abs(effectThickness - thickness) < 0.25f
+                && Math.abs(effectStrength - strength) < 0.01f) {
                 return;
             }
             effectValid = true;
@@ -273,12 +279,13 @@ public final class LiquidGlassPopupBackground {
             effectRight = right;
             effectBottom = bottom;
             effectRadius = radius;
+            effectThickness = thickness;
             effectStrength = strength;
 
             final RenderEffect blurEffect = RenderEffect.createBlurEffect(blur, blur, Shader.TileMode.CLAMP);
             RenderEffect effect = blurEffect;
             if (Build.VERSION.SDK_INT >= 33 && LiquidGlassController.getTier() == LiquidGlassController.TIER_SHADER) {
-                final RenderEffect refractionEffect = createRefraction(left, top, right, bottom, radius, strength);
+                final RenderEffect refractionEffect = createRefraction(left, top, right, bottom, radius, thickness, strength);
                 if (refractionEffect != null) {
                     // сначала размытие (inner), поверх него преломление (outer)
                     effect = RenderEffect.createChainEffect(refractionEffect, blurEffect);
@@ -289,7 +296,8 @@ public final class LiquidGlassPopupBackground {
 
         @RequiresApi(33)
         @Nullable
-        private RenderEffect createRefraction(float left, float top, float right, float bottom, float radius, float strength) {
+        private RenderEffect createRefraction(float left, float top, float right, float bottom, float radius,
+                                             float thickness, float strength) {
             if (refractionFailed) {
                 return null;
             }
@@ -299,6 +307,8 @@ public final class LiquidGlassPopupBackground {
                 }
                 refraction.setFloatUniform("uRect", left, top, right, bottom);
                 refraction.setFloatUniform("uRadius", Math.max(0f, radius));
+                refraction.setFloatUniform("uThickness", Math.max(1f, thickness));
+                refraction.setFloatUniform("uIndex", LiquidGlassController.REFRACTION_INDEX);
                 refraction.setFloatUniform("uStrength", Math.max(0f, strength));
                 return RenderEffect.createRuntimeShaderEffect(refraction, "content");
             } catch (Throwable e) {
