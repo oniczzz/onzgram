@@ -472,6 +472,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         tabsViewBackground = iBlur3FactoryGlass.create(tabsView, BlurredBackgroundProviderImpl.mainTabs(resourceProvider));
         tabsViewBackground.setRadius(MainTabsUiHelper.getBackgroundRadius());
         tabsViewBackground.setPadding(MainTabsUiHelper.getBackgroundInset());
+        // onzgram Liquid Glass: плавающая нижняя навигация
+        tabsViewBackground.setLiquidGlassOverlay(true);
         tabsView.setBackground(tabsViewBackground);
 
         BlurredBackgroundDrawableViewFactory iBlur3FactoryFade = new BlurredBackgroundDrawableViewFactory(iBlur3SourceColor);

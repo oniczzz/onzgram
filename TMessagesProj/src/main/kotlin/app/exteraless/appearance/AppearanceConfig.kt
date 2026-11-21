@@ -207,6 +207,36 @@ object AppearanceConfig {
         return glassOutlineStyle.Int()
     }
 
+    // ---- Liquid Glass (onzgram) ----
+
+    /** Максимум слайдера интенсивности Liquid Glass. */
+    const val LIQUID_GLASS_INTENSITY_MAX = 100
+
+    /**
+     * Liquid Glass onzgram: стеклянный слой над шапкой, полем ввода, всплывающими
+     * меню и плавающими панелями. Рисует [app.exteraless.appearance.glass.LiquidGlassController].
+     */
+    @JvmField
+    val liquidGlass =
+        addConfig("OEAppearanceLiquidGlass", ConfigItem.configTypeBool, true)
+
+    /** Интенсивность Liquid Glass, 0..[LIQUID_GLASS_INTENSITY_MAX]: сила размытия и прозрачность. */
+    @JvmField
+    val liquidGlassIntensity =
+        addConfig("OEAppearanceLiquidGlassIntensity", ConfigItem.configTypeInt, 60)
+
+    @JvmStatic
+    fun liquidGlass(): Boolean {
+        ensureLoaded()
+        return liquidGlass.Bool()
+    }
+
+    @JvmStatic
+    fun liquidGlassIntensity(): Int {
+        ensureLoaded()
+        return liquidGlassIntensity.Int().coerceIn(0, LIQUID_GLASS_INTENSITY_MAX)
+    }
+
     // ---- Material Design 3 ----
     // switchStyle и sliderStyle уже есть у NagramX (NaConfig, дефолт 2 = MD3) — не дублируем.
 

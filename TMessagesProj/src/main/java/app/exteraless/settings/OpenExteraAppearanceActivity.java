@@ -79,6 +79,8 @@ public class OpenExteraAppearanceActivity extends BaseNekoSettingsActivity {
     private static final int TYPE_ROUND_CHECK = 105;
     /** Две карточки-превью формы плавающей кнопки. */
     private static final int TYPE_FAB_SHAPE = 106;
+    /** Слайдер интенсивности Liquid Glass. */
+    private static final int TYPE_LIQUID_GLASS_SLIDER = 107;
 
     // Appearance
     private int appearanceHeaderRow;
@@ -97,6 +99,8 @@ public class OpenExteraAppearanceActivity extends BaseNekoSettingsActivity {
 
     // Blur
     private int blurHeaderRow;
+    private int liquidGlassRow;
+    private int liquidGlassIntensityRow;
     private int glassOutlineRow;
     private int glassMessageMenuRow;
     private int forceBlurRow;
@@ -248,6 +252,8 @@ public class OpenExteraAppearanceActivity extends BaseNekoSettingsActivity {
         sectionsDividerRow = addRow();
 
         blurHeaderRow = addRow("blurHeader");
+        liquidGlassRow = addRow("liquidGlass");
+        liquidGlassIntensityRow = AppearanceConfig.liquidGlass() ? addRow("liquidGlassIntensity") : -1;
         glassOutlineRow = addRow("glassOutline");
         glassMessageMenuRow = addRow("glassMessageMenu");
         forceBlurRow = addRow("forceBlur");
@@ -599,6 +605,18 @@ public class OpenExteraAppearanceActivity extends BaseNekoSettingsActivity {
         AndroidUtilities.runOnUIThread(sectionRadiusRebuild, 350);
     }
 
+    /**
+     * Интенсивность Liquid Glass читается при каждой отрисовке стекла; открытые экраны
+     * пересобираем с задержкой, как и после слайдера радиуса секций.
+     */
+    private final Runnable liquidGlassRebuild = this::rebuildAll;
+
+    private void onLiquidGlassIntensityChanged(int value) {
+        AppearanceConfig.liquidGlassIntensity.setConfigInt(value);
+        AndroidUtilities.cancelRunOnUIThread(liquidGlassRebuild);
+        AndroidUtilities.runOnUIThread(liquidGlassRebuild, 350);
+    }
+
     /** Все живые превью экрана — их надо дёргать на смене темы и стиля разделителя. */
     private void invalidatePreviews() {
         if (avatarCornersPreviewCell != null) avatarCornersPreviewCell.invalidate();
@@ -799,6 +817,15 @@ public class OpenExteraAppearanceActivity extends BaseNekoSettingsActivity {
                 showPowerSaverNotice();
             }
             return;
+        } else if (position == liquidGlassRow) {
+            boolean enabled = AppearanceConfig.liquidGlass.toggleConfigBool();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(enabled);
+            }
+            // строка ползунка интенсивности появляется / исчезает вместе с переключателем
+            rebuildRowsAndNotify();
+            rebuildAll();
+            return;
         } else if (position == glassMessageMenuRow) {
             boolean enabled = AppearanceConfig.glassMessageMenu.toggleConfigBool();
             if (view instanceof TextCheckCell) {
@@ -940,6 +967,19 @@ public class OpenExteraAppearanceActivity extends BaseNekoSettingsActivity {
                     slider.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
                     view = slider;
                     break;
+                case TYPE_LIQUID_GLASS_SLIDER: {
+                    AvatarCornersSeekBar glassSlider = new AvatarCornersSeekBar(mContext,
+                            OpenExteraAppearanceActivity.this::onLiquidGlassIntensityChanged,
+                            0, AppearanceConfig.LIQUID_GLASS_INTENSITY_MAX,
+                            getString(R.string.OEAppearanceLiquidGlassIntensity),
+                            getString(R.string.OEAppearanceLiquidGlassIntensityMin),
+                            getString(R.string.OEAppearanceLiquidGlassIntensityMax));
+                    glassSlider.setValueSuffix("%");
+                    glassSlider.setValue(AppearanceConfig.liquidGlassIntensity());
+                    glassSlider.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+                    view = glassSlider;
+                    break;
+                }
                 default:
                     return super.onCreateViewHolder(parent, viewType);
             }
@@ -985,6 +1025,8 @@ public class OpenExteraAppearanceActivity extends BaseNekoSettingsActivity {
                         cell.setTextAndCheck(getString(R.string.OEAppearanceCustomThemes), AppearanceConfig.customThemes.Bool(), false);
                     } else if (position == separateHeadersRow) {
                         cell.setTextAndCheck(getString(R.string.OEAppearanceSeparateHeaders), AppearanceConfig.sectionsSeparatedHeaders(), true);
+                    } else if (position == liquidGlassRow) {
+                        cell.setTextAndValueAndCheck(getString(R.string.OEAppearanceLiquidGlass), getString(R.string.OEAppearanceLiquidGlassInfo), AppearanceConfig.liquidGlass.Bool(), true, true);
                     } else if (position == glassMessageMenuRow) {
                         cell.setTextAndValueAndCheck(getString(R.string.OEAppearanceGlassMessageMenu), getString(R.string.OEAppearanceGlassMessageMenuInfo), AppearanceConfig.glassMessageMenu.Bool(), true, true);
                     } else if (position == forceBlurRow) {
@@ -1159,6 +1201,8 @@ public class OpenExteraAppearanceActivity extends BaseNekoSettingsActivity {
                 return TYPE_FOLDERS;
             } else if (position == sectionRadiusRow) {
                 return TYPE_SECTION_SLIDER;
+            } else if (position == liquidGlassIntensityRow) {
+                return TYPE_LIQUID_GLASS_SLIDER;
             } else if (position == appearanceHeaderRow || position == sectionsHeaderRow
                     || position == blurHeaderRow || position == chatListHeaderRow
                     || position == foldersHeaderRow || position == linksHeaderRow) {
@@ -1309,6 +1353,7 @@ public class OpenExteraAppearanceActivity extends BaseNekoSettingsActivity {
     public void onFragmentDestroy() {
         // Отложенная пересборка после слайдера радиуса переживёт закрытие экрана, если её не снять.
         AndroidUtilities.cancelRunOnUIThread(sectionRadiusRebuild);
+        AndroidUtilities.cancelRunOnUIThread(liquidGlassRebuild);
         super.onFragmentDestroy();
     }
 }

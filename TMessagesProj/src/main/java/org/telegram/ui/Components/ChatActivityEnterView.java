@@ -4995,6 +4995,10 @@ public class ChatActivityEnterView extends FrameLayout implements
         } else {
             canvas.drawRect(0, bottom, getWidth(), getHeight(), getThemedPaint(Theme.key_paint_chatComposeBackground));
         }
+        // onzgram Liquid Glass: блик и светящаяся кромка сверху у классической панели ввода.
+        // В стеклянном дизайне чата фон рисует ChatInputViewsContainer (остров с тем же слоем).
+        app.exteraless.appearance.glass.LiquidGlassController.drawBarOverlay(
+            canvas, 0, bottom, getWidth(), getHeight(), true, resourcesProvider);
     }
 
     public float getVisualHeight() {

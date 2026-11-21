@@ -145,4 +145,9 @@
     <string name="OEStartupFolderDontOpen">Не открывать при запуске</string>
     <string name="OEStartupFolderSet">**%1$s** будет открываться при запуске</string>
     <string name="OEStartupFolderReset">При запуске откроется первая папка</string>
+    <string name="OEAppearanceLiquidGlass">Liquid Glass</string>
+    <string name="OEAppearanceLiquidGlassInfo">Стекло с преломлением и бликом на шапке, панели ввода, меню и плавающих панелях.</string>
+    <string name="OEAppearanceLiquidGlassIntensity">Интенсивность стекла</string>
+    <string name="OEAppearanceLiquidGlassIntensityMin">Слабо</string>
+    <string name="OEAppearanceLiquidGlassIntensityMax">Сильно</string>
 </resources>

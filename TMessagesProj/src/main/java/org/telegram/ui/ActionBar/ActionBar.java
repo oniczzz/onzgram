@@ -245,7 +245,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
         glassDrawable = factory.create(this)
                 .setColorProvider(colorProvider)
-                .setPadding(dp(6));
+                .setPadding(dp(6))
+                .setLiquidGlassOverlay(true);
         final int glassAvatarSizeDp = app.exteraless.appearance.ChatHeaderUiHelper.getChatAvatarSizeDp();
         glassAvatarGap = app.exteraless.appearance.ChatHeaderUiHelper.isMaterial3ChatHeaderStyle()
             ? dp(3.33f)
@@ -260,12 +261,14 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         glassDrawableBack = factory.create(this)
                 .setColorProvider(colorProvider)
                 .setRadius(dp(23))
-                .setPadding(dp(6));
+                .setPadding(dp(6))
+                .setLiquidGlassOverlay(true);
 
         glassDrawableMenu = factory.create(this)
                 .setColorProvider(colorProvider)
                 .setRadius(dp(23))
-                .setPadding(dp(6));
+                .setPadding(dp(6))
+                .setLiquidGlassOverlay(true);
 
         if (menu != null) {
             menu.setTranslationX(-dp(10));
@@ -356,7 +359,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (factory == null) {
             return null;
         }
-        return factory.create(owner).setColorProvider(glassColorProvider).setRadius(dp(23)).setPadding(dp(6));
+        return factory.create(owner).setColorProvider(glassColorProvider).setRadius(dp(23)).setPadding(dp(6))
+                .setLiquidGlassOverlay(true);
     }
 
     @Override
@@ -2797,6 +2801,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             } else {
                 contentView.drawBlurRect(canvas, getY(), rectTmp, blurScrimPaint, true);
             }
+            // onzgram Liquid Glass: блик и светящаяся кромка снизу на размытой шапке (список чатов)
+            app.exteraless.appearance.glass.LiquidGlassController.drawBarOverlay(
+                canvas, 0, 0, getMeasuredWidth(), getMeasuredHeight(), false, resourcesProvider);
         }
 
         isAnimationsAllowed = true;

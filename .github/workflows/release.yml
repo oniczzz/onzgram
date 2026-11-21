@@ -1,4 +1,16 @@
-name: Release Build
+name: onzgram build
+
+# Собирает рабочий release-APK onzgram при каждом пуше в main.
+# RELEASE_KEYSTORE не нужен: APK подписывается debug-ключом. Чтобы APK из
+# разных запусков ставились поверх друг друга, debug.keystore кешируется
+# между запусками (или берётся из необязательного секрета DEBUG_KEYSTORE,
+# base64 от ~/.android/debug.keystore).
+#
+# Секреты:
+#   LOCAL_PROPERTIES — base64 от local.properties (TELEGRAM_APP_ID,
+#                      TELEGRAM_APP_HASH, MAPS_API_KEY, ...). Необязателен.
+#   DEBUG_KEYSTORE   — base64 от debug.keystore. Необязателен.
+#   TG_*             — отправка APK в Telegram. Необязательны.
 
 on:
   push:
@@ -6,12 +18,10 @@ on:
       - main
     paths-ignore:
       - '**.md'
-      - '.github/**'
-      - '!.github/workflows/release.yml'
   workflow_dispatch:
     inputs:
       publish:
-        description: 'Post the APK to the Telegram channel'
+        description: 'Publish a GitHub pre-release and post the APK to Telegram'
         type: boolean
         default: true
 
@@ -64,9 +74,55 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes nasm
-      - name: Configure Android SDK Path
+      - name: Write local.properties
+        env:
+          LOCAL_PROPERTIES_B64: ${{ secrets.LOCAL_PROPERTIES }}
         run: |
-          echo "sdk.dir=${ANDROID_HOME}" >> local.properties
+          : > local.properties
+          if [ -n "$LOCAL_PROPERTIES_B64" ]; then
+            if printf '%s' "$LOCAL_PROPERTIES_B64" | base64 -d > local.properties 2>/dev/null; then
+              echo "local.properties decoded from LOCAL_PROPERTIES"
+            else
+              # Секрет положен как обычный текст, а не base64.
+              printf '%s\n' "$LOCAL_PROPERTIES_B64" > local.properties
+              echo "LOCAL_PROPERTIES is not base64 — written as plain text"
+            fi
+          else
+            echo "LOCAL_PROPERTIES is not set — building with default API keys"
+          fi
+          sed -i '/^sdk\.dir=/d' local.properties
+          printf '\nsdk.dir=%s\n' "$ANDROID_HOME" >> local.properties
+          echo "keys in local.properties:"
+          sed 's/=.*//' local.properties | grep -v '^$' || true
+      - name: Restore debug signing key from cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: onzgram-debug-keystore-v1
+      - name: Restore debug signing key from secret
+        env:
+          DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
+        run: |
+          mkdir -p ~/.android
+          if [ -n "$DEBUG_KEYSTORE" ]; then
+            printf '%s' "$DEBUG_KEYSTORE" | base64 -d > ~/.android/debug.keystore
+            echo "debug.keystore restored from DEBUG_KEYSTORE"
+          elif [ -f ~/.android/debug.keystore ]; then
+            echo "debug.keystore restored from cache"
+          else
+            keytool -genkeypair -v -keystore ~/.android/debug.keystore \
+              -storepass android -keypass android -alias androiddebugkey \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA -keysize 2048 -validity 10000
+            echo "new debug.keystore generated (cached for the next runs)"
+          fi
+          # AGP берёт debug.keystore из ANDROID_USER_HOME, если он задан.
+          if [ -n "$ANDROID_USER_HOME" ] && [ "$ANDROID_USER_HOME" != "$HOME/.android" ]; then
+            mkdir -p "$ANDROID_USER_HOME"
+            cp ~/.android/debug.keystore "$ANDROID_USER_HOME/debug.keystore"
+          fi
+          # Без release.keystore build.gradle подписывает APK отладочным ключом.
+          rm -f TMessagesProj/release.keystore
       - name: Modify Gradle JVM Args
         run: |
           MEMORY_KB=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
@@ -77,31 +133,24 @@ jobs:
             echo "org.gradle.jvmargs=-Xmx8G -XX:MaxMetaspaceSize=2G -XX:+UseParallelGC -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> gradle.properties
           fi
           cat gradle.properties
-      - name: Restore signing key
-        env:
-          RELEASE_KEYSTORE: ${{ secrets.RELEASE_KEYSTORE }}
-        run: |
-          if [ -n "$RELEASE_KEYSTORE" ]; then
-            echo "$RELEASE_KEYSTORE" | base64 -d > TMessagesProj/release.keystore
-            echo "signing key restored"
-          else
-            echo "RELEASE_KEYSTORE не задан — сборка подпишется отладочным ключом"
-          fi
       - name: Release Build
         id: release_build_step
         env:
           COMMIT_ID: ${{ github.event.head_commit.id || github.sha }}
         run: |
-          export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
+          # build.gradle читает local.properties, записанный шагом выше.
+          unset LOCAL_PROPERTIES
           export BUILD_TIMESTAMP=$(date +%s)
           echo "build_timestamp=$BUILD_TIMESTAMP" >> "$GITHUB_OUTPUT"
           ./gradlew TMessagesProj:assembleRelease
-      - name: Upload arm64-v8a Artifact
+          ls -la TMessagesProj/build/outputs/apk/release/
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Release
+          name: onzgram-release
           path: |
             TMessagesProj/build/outputs/apk/release/*.apk
+          if-no-files-found: error
       - name: Publish GitHub pre-release
         if: ${{ github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.publish) && !contains(github.event.head_commit.message, '[skip publish]') }}
         env:
@@ -115,7 +164,7 @@ jobs:
           fi
           gh release create "$TAG" TMessagesProj/build/outputs/apk/release/*.apk \
             --target "$GITHUB_SHA" --prerelease --latest=false \
-            --title "exteraless CI $SHORT" --notes "$NOTES"
+            --title "onzgram CI $SHORT" --notes "$NOTES"
           gh release list --limit 100 --json tagName,isPrerelease,createdAt \
             -q '[.[] | select(.isPrerelease and (.tagName | startswith("ci-")))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName' |
             while read -r old; do

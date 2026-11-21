@@ -81,6 +81,8 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
         blurredBackgroundDrawable = drawable;
         blurredBackgroundDrawable.setPadding(dp(7));
         blurredBackgroundDrawable.setRadius(dp(INPUT_BUBBLE_RADIUS));
+        // onzgram Liquid Glass: стеклянный остров поля ввода (ChatActivityEnterView)
+        blurredBackgroundDrawable.setLiquidGlassOverlay(true);
     }
 
     public void setUnderKeyboardBackgroundDrawable(BlurredBackgroundDrawable drawable) {

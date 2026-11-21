@@ -154,4 +154,9 @@
     <string name="OEStartupFolderDontOpen">Don\'t Open at Startup</string>
     <string name="OEStartupFolderSet">**%1$s** will open at startup</string>
     <string name="OEStartupFolderReset">The first folder will open at startup</string>
+    <string name="OEAppearanceLiquidGlass">Liquid Glass</string>
+    <string name="OEAppearanceLiquidGlassInfo">Glass with refraction and glare on the header, the message bar, menus and floating panels.</string>
+    <string name="OEAppearanceLiquidGlassIntensity">Glass Intensity</string>
+    <string name="OEAppearanceLiquidGlassIntensityMin">Subtle</string>
+    <string name="OEAppearanceLiquidGlassIntensityMax">Strong</string>
 </resources>

@@ -855,6 +855,40 @@ public class BlurredBackgroundDrawable extends GlassDrawable implements Theme.Co
         }
         impl.draw(canvas, drawn);
         drawRim(canvas, getAlpha() / 255f);
+        if (liquidGlassOverlay) {
+            drawLiquidGlassOverlay(canvas);
+        }
+    }
+
+    /* onzgram Liquid Glass */
+
+    private boolean liquidGlassOverlay;
+    private final RectF liquidGlassBounds = new RectF();
+
+    /**
+     * onzgram: рисовать поверх этого стекла слой Liquid Glass
+     * ({@link app.exteraless.appearance.glass.LiquidGlassController}) — преломление краёв, блик,
+     * тонировку и обводку. Сам слой проверяет настройку на каждой отрисовке.
+     */
+    public BlurredBackgroundDrawable setLiquidGlassOverlay(boolean enabled) {
+        if (liquidGlassOverlay != enabled) {
+            liquidGlassOverlay = enabled;
+            invalidateSelf();
+        }
+        return this;
+    }
+
+    private void drawLiquidGlassOverlay(@NonNull Canvas canvas) {
+        if (!app.exteraless.appearance.glass.LiquidGlassController.isEnabled()) {
+            return;
+        }
+        liquidGlassBounds.set(boundProps.body);
+        float radius = 0;
+        for (int i = 0; i < boundProps.radii.length; i += 2) {
+            radius = Math.max(radius, boundProps.radii[i]);
+        }
+        app.exteraless.appearance.glass.LiquidGlassController.drawOverlay(
+            canvas, boundProps.path, liquidGlassBounds, radius, getAlpha() / 255f, null);
     }
 
     private static GlassSource softwareSource(GlassSource source) {

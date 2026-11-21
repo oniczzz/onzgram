@@ -531,7 +531,9 @@ public class ActionBarPopupWindow extends PopupWindow {
                         AndroidUtilities.lerp(rect, AndroidUtilities.rectTmp2, reactionsEnterProgress, AndroidUtilities.rectTmp2);
                     }
                     backgroundDrawable.setBounds(AndroidUtilities.rectTmp2);
-                    backgroundDrawable.draw(canvas);
+                    if (!drawLiquidGlassBackground(canvas, AndroidUtilities.rectTmp2, applyAlpha ? backAlpha : 255)) {
+                        backgroundDrawable.draw(canvas);
+                    }
                     if (clipChildren) {
                         AndroidUtilities.rectTmp2.left += bgPaddings.left;
                         AndroidUtilities.rectTmp2.top += bgPaddings.top;
@@ -582,6 +584,38 @@ public class ActionBarPopupWindow extends PopupWindow {
                 canvas.restore();
             } else {
                 super.dispatchDraw(canvas);
+            }
+        }
+
+        /** onzgram Liquid Glass: фон меню, когда стекло включено (см. LiquidGlassController). */
+        private app.exteraless.appearance.glass.LiquidGlassPopupBackground liquidGlassBackground;
+
+        /**
+         * Стеклянный фон меню. Стеклянное меню сообщения (blur3) получает слой Liquid Glass
+         * поверх своего стекла; обычный 9-patch фон заменяется стеклом целиком.
+         *
+         * @return false — рисовать обычный фон
+         */
+        private boolean drawLiquidGlassBackground(Canvas canvas, Rect bounds, int alpha) {
+            if (backgroundDrawable instanceof org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable) {
+                ((org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable) backgroundDrawable).setLiquidGlassOverlay(true);
+                return false;
+            }
+            if (!(backgroundDrawable instanceof android.graphics.drawable.NinePatchDrawable)
+                    || !app.exteraless.appearance.glass.LiquidGlassPopupBackground.isActive()) {
+                return false;
+            }
+            if (liquidGlassBackground == null) {
+                liquidGlassBackground = new app.exteraless.appearance.glass.LiquidGlassPopupBackground(this);
+            }
+            return liquidGlassBackground.draw(canvas, bounds, bgPaddings, backgroundColor, alpha, resourcesProvider);
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            super.onDetachedFromWindow();
+            if (liquidGlassBackground != null) {
+                liquidGlassBackground.release();
             }
         }
 
