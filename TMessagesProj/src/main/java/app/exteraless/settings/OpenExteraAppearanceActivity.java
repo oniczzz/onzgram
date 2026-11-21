@@ -241,6 +241,9 @@ public class OpenExteraAppearanceActivity extends BaseNekoSettingsActivity {
         } else {
             iosNavBarRow = iosChatHeaderRow = -1;
         }
+        // Liquid Glass — рядом с группами Material Design 3 и iOS, где его ищут.
+        liquidGlassRow = addRow("liquidGlass");
+        liquidGlassIntensityRow = AppearanceConfig.liquidGlass() ? addRow("liquidGlassIntensity") : -1;
         gooeyAvatarRow = addRow("gooeyAvatar");
         customThemesRow = addRow("customThemes");
         appearanceDividerRow = addRow();
@@ -252,8 +255,6 @@ public class OpenExteraAppearanceActivity extends BaseNekoSettingsActivity {
         sectionsDividerRow = addRow();
 
         blurHeaderRow = addRow("blurHeader");
-        liquidGlassRow = addRow("liquidGlass");
-        liquidGlassIntensityRow = AppearanceConfig.liquidGlass() ? addRow("liquidGlassIntensity") : -1;
         glassOutlineRow = addRow("glassOutline");
         glassMessageMenuRow = addRow("glassMessageMenu");
         forceBlurRow = addRow("forceBlur");

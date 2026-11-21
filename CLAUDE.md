@@ -29,7 +29,7 @@
 - Фон попапов: `.../appearance/glass/LiquidGlassPopupBackground.java` (PixelCopy → RenderNode + RenderEffect).
 - Конфиг: `TMessagesProj/src/main/kotlin/app/exteraless/appearance/AppearanceConfig.kt`
   (`liquidGlass`, `liquidGlassIntensity` 0..100).
-- Экран настроек: `app/exteraless/settings/OpenExteraAppearanceActivity.java` (секция «Размытие»).
+- Экран настроек: `app/exteraless/settings/OpenExteraAppearanceActivity.java` (секция «Общее», под Material Design 3 / iOS).
 - Точки интеграции: `ActionBar.setupGlass/createMenuGlass/dispatchDraw`, `ChatActivityEnterView.drawBackground`,
   `Components/chat/ChatInputViewsContainer.setInputIslandBubbleDrawable`, `ActionBarPopupWindow.drawLiquidGlassBackground`,
   `MainTabsActivity` (нижняя навигация), `DialogsActivity` (панель папок).
